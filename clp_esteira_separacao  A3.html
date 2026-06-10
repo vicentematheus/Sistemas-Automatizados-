@@ -1,0 +1,369 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);background:var(--color-background-tertiary)}
+.sim{padding:1rem;max-width:900px;margin:0 auto}
+.title{font-size:16px;font-weight:500;color:var(--color-text-primary);margin-bottom:1rem;display:flex;align-items:center;gap:8px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem}
+.card-title{font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
+.belt-area{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem;margin-bottom:12px}
+canvas#belt{width:100%;height:160px;display:block;border-radius:8px;background:#1a1a2e}
+.controls{display:flex;gap:8px;margin-top:.75rem;flex-wrap:wrap;align-items:center}
+.btn{padding:6px 16px;font-size:13px;font-weight:500;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);color:var(--color-text-primary);cursor:pointer;transition:background .15s}
+.btn:hover{background:var(--color-background-secondary)}
+.btn.start{border-color:#1D9E75;color:#0F6E56}
+.btn.start:hover{background:#E1F5EE}
+.btn.stop{border-color:#D85A30;color:#993C1D}
+.btn.stop:hover{background:#FAECE7}
+.btn.add{border-color:#378ADD;color:#185FA5}
+.btn.add:hover{background:#E6F1FB}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:.75rem;text-align:center}
+.stat-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px}
+.stat-value{font-size:22px;font-weight:500;color:var(--color-text-primary)}
+.io-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.io-row{display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:4px 6px;border-radius:6px;background:var(--color-background-secondary)}
+.io-name{color:var(--color-text-secondary);font-family:var(--font-mono)}
+.led{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+.led.on-green{background:#1D9E75;box-shadow:0 0 4px #1D9E75}
+.led.on-red{background:#D85A30;box-shadow:0 0 4px #D85A30}
+.led.on-blue{background:#378ADD;box-shadow:0 0 4px #378ADD}
+.led.off{background:#444;box-shadow:none}
+.status-bar{display:flex;align-items:center;gap:8px;font-size:12px;margin-top:.5rem}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+</style>
+
+<div class="sim">
+  <div class="title">
+    <i class="ti ti-cpu" aria-hidden="true" style="font-size:18px"></i>
+    Simulador CLP — Esteira de separação de mercadoria
+  </div>
+
+  <div class="belt-area">
+    <canvas id="belt" height="160"></canvas>
+    <div class="controls">
+      <button class="btn start" id="btnStart" onclick="pressStart()">▶ START</button>
+      <button class="btn stop" id="btnStop" onclick="pressStop()">■ STOP</button>
+      <button class="btn add" onclick="addProduct()">+ Adicionar produto</button>
+      <div class="status-bar" id="statusBar">
+        <div class="status-dot" id="statusDot" style="background:#888"></div>
+        <span id="statusText" style="color:var(--color-text-secondary)">Sistema parado</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panels">
+    <div class="card">
+      <div class="card-title">Entradas (Inputs)</div>
+      <div class="io-grid">
+        <div class="io-row"><span class="io-name">START</span><span class="led off" id="led-START"></span></div>
+        <div class="io-row"><span class="io-name">STOP</span><span class="led on-red" id="led-STOP"></span></div>
+        <div class="io-row"><span class="io-name">S_BARREIRA</span><span class="led off" id="led-SBARREIRA"></span></div>
+        <div class="io-row"><span class="io-name">S_COR_A</span><span class="led off" id="led-SCORA"></span></div>
+        <div class="io-row"><span class="io-name">S_COR_B</span><span class="led off" id="led-SCORB"></span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Saídas (Outputs)</div>
+      <div class="io-grid">
+        <div class="io-row"><span class="io-name">M_ESTEIRA</span><span class="led off" id="led-MESTEIRA"></span></div>
+        <div class="io-row"><span class="io-name">LAMP_VDE</span><span class="led off" id="led-LAMPVDE"></span></div>
+        <div class="io-row"><span class="io-name">LAMP_VM</span><span class="led on-red" id="led-LAMPVM"></span></div>
+        <div class="io-row"><span class="io-name">ACT_A</span><span class="led off" id="led-ACTA"></span></div>
+        <div class="io-row"><span class="io-name">ACT_B</span><span class="led off" id="led-ACTB"></span></div>
+        <div class="io-row"><span class="io-name">DesligaTemp</span><span class="led off" id="led-DT"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">Contadores</div>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Total</div><div class="stat-value" id="cnt-total">0</div></div>
+      <div class="stat"><div class="stat-label">Tipo A</div><div class="stat-value" id="cnt-a" style="color:#1D9E75">0</div></div>
+      <div class="stat"><div class="stat-label">Tipo B</div><div class="stat-value" id="cnt-b" style="color:#378ADD">0</div></div>
+      <div class="stat"><div class="stat-label">Tipo C</div><div class="stat-value" id="cnt-c" style="color:#888780">0</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const C = document.getElementById('belt');
+const ctx = C.getContext('2d');
+C.width = C.offsetWidth * window.devicePixelRatio || 800;
+C.height = 160 * (window.devicePixelRatio || 1);
+ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1);
+const W = C.offsetWidth || 800, H = 160;
+
+const state = {
+  running: false,
+  desligaTemp: false,
+  desligaTempTimer: 0,
+  startPulse: false,
+  stopNC: true,
+  products: [],
+  cntTotal: 0, cntA: 0, cntB: 0, cntC: 0,
+  sBarreira: false,
+  sCorA: false,
+  sCorB: false,
+  actA: false,
+  actB: false,
+  beltOffset: 0,
+  pistaoAx: 0,
+  pistaoBx: 0,
+};
+
+const BELT_Y = 95, BELT_H = 30;
+const SENSOR_BARREIRA_X = 80;
+const SENSOR_A_X = 220;
+const SENSOR_B_X = 380;
+const EXIT_X = W - 40;
+const DEST_A_Y = 40;
+const DEST_B_Y = 140;
+
+function addProduct() {
+  if (!state.running) return;
+  const types = ['A','A','B','B','C'];
+  const type = types[Math.floor(Math.random()*types.length)];
+  state.products.push({x: 20, type, detected: false, diverted: false, divertProgress: 0, divertDir: 0, opacity: 1});
+}
+
+function pressStart() {
+  state.startPulse = true;
+  setTimeout(()=>state.startPulse=false, 200);
+  updateLED('led-START', true, 'green');
+  setTimeout(()=>updateLED('led-START', false, 'green'), 300);
+}
+
+function pressStop() {
+  state.running = false;
+  state.desligaTemp = false;
+  state.desligaTempTimer = 0;
+  updateStatus();
+}
+
+function updateLED(id, on, color='green') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'led ' + (on ? 'on-'+color : 'off');
+}
+
+function updateStatus() {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  if (!state.running) {
+    dot.style.background = '#D85A30'; txt.textContent = 'Sistema parado — pressione START'; txt.style.color='#993C1D';
+  } else if (state.desligaTemp) {
+    dot.style.background = '#BA7517'; txt.textContent = 'Separando produto — esteira pausada'; txt.style.color='#854F0B';
+  } else {
+    dot.style.background = '#1D9E75'; txt.textContent = 'Operando — esteira em movimento'; txt.style.color='#0F6E56';
+  }
+}
+
+let lastTime = 0;
+function loop(ts) {
+  const dt = Math.min((ts - lastTime)/1000, 0.05);
+  lastTime = ts;
+  ladderLogic(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function ladderLogic(dt) {
+  if (state.startPulse && state.stopNC && !state.running) {
+    state.running = true;
+  }
+
+  const motorOn = state.running && !state.desligaTemp;
+  if (motorOn) state.beltOffset = (state.beltOffset + dt * 80) % 20;
+
+  state.sBarreira = false;
+  state.sCorA = false;
+  state.sCorB = false;
+
+  for (let p of state.products) {
+    if (p.diverted) continue;
+    if (Math.abs(p.x - SENSOR_BARREIRA_X) < 12) state.sBarreira = true;
+    if (Math.abs(p.x - SENSOR_A_X) < 12) state.sCorA = (p.type === 'A');
+    if (Math.abs(p.x - SENSOR_B_X) < 12) state.sCorB = (p.type === 'B');
+  }
+
+  if ((state.sCorA || state.sCorB) && !state.desligaTemp) {
+    state.desligaTemp = true;
+    state.desligaTempTimer = 1.0;
+  }
+
+  if (state.desligaTemp) {
+    state.desligaTempTimer -= dt;
+    if (state.desligaTempTimer <= 0) {
+      state.desligaTemp = false;
+      state.desligaTempTimer = 0;
+    }
+  }
+
+  state.actA = state.desligaTemp && state.sCorA;
+  state.actB = state.desligaTemp && state.sCorB;
+
+  for (let p of state.products) {
+    if (p.diverted) {
+      p.divertProgress = Math.min(p.divertProgress + dt * 1.5, 1);
+      p.opacity = 1 - p.divertProgress * 0.5;
+      continue;
+    }
+    if (!motorOn && !p.diverted) continue;
+    p.x += dt * 70;
+
+    if (!p.detected && p.x > SENSOR_BARREIRA_X - 10) {
+      p.detected = true;
+      state.cntTotal++;
+      updateCounter('cnt-total', state.cntTotal);
+    }
+
+    if (p.type === 'A' && Math.abs(p.x - SENSOR_A_X) < 8 && !p.diverted) {
+      p.diverted = true; p.divertDir = -1;
+      state.cntA++; updateCounter('cnt-a', state.cntA);
+    }
+    if (p.type === 'B' && Math.abs(p.x - SENSOR_B_X) < 8 && !p.diverted) {
+      p.diverted = true; p.divertDir = 1;
+      state.cntB++; updateCounter('cnt-b', state.cntB);
+    }
+    if (p.type === 'C' && p.x > EXIT_X && !p.diverted) {
+      p.diverted = true; p.divertDir = 0;
+      state.cntC++; updateCounter('cnt-c', state.cntC);
+    }
+  }
+  state.products = state.products.filter(p => !(p.diverted && p.divertProgress >= 1));
+
+  updateLED('led-SBARREIRA', state.sBarreira, 'blue');
+  updateLED('led-SCORA', state.sCorA, 'green');
+  updateLED('led-SCORB', state.sCorB, 'blue');
+  updateLED('led-MESTEIRA', motorOn, 'green');
+  updateLED('led-LAMPVDE', motorOn, 'green');
+  updateLED('led-LAMPVM', !state.running, 'red');
+  updateLED('led-ACTA', state.actA, 'green');
+  updateLED('led-ACTB', state.actB, 'blue');
+  updateLED('led-DT', state.desligaTemp, 'red');
+  updateLED('led-STOP', !state.running, 'red');
+  updateStatus();
+}
+
+function updateCounter(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+const PRODUCT_COLORS = {A:'#1D9E75', B:'#378ADD', C:'#888780'};
+
+function draw() {
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle = '#2a2a3e';
+  ctx.fillRect(0, BELT_Y - 2, W, BELT_H + 4);
+  ctx.fillStyle = '#3a3a5e';
+  ctx.fillRect(0, BELT_Y, W, BELT_H);
+
+  ctx.strokeStyle = '#4a4a7e';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([15,5]);
+  ctx.lineDashOffset = -state.beltOffset;
+  ctx.beginPath();
+  ctx.moveTo(0, BELT_Y + BELT_H/2);
+  ctx.lineTo(W, BELT_Y + BELT_H/2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const motorOn = state.running && !state.desligaTemp;
+  ctx.fillStyle = motorOn ? '#0F6E56' : '#4a2a2e';
+  ctx.fillRect(0, BELT_Y-2, 12, BELT_H+4);
+  ctx.fillRect(W-12, BELT_Y-2, 12, BELT_H+4);
+
+  drawSensor(SENSOR_BARREIRA_X, 'S_BARREIRA', state.sBarreira, '#BA7517');
+  drawSensor(SENSOR_A_X, 'S_COR_A', state.sCorA, '#1D9E75');
+  drawSensor(SENSOR_B_X, 'S_COR_B', state.sCorB, '#378ADD');
+
+  if (state.actA) {
+    ctx.fillStyle = '#1D9E75';
+    ctx.fillRect(SENSOR_A_X - 4, BELT_Y - 18, 8, 18);
+    ctx.fillStyle = '#9FE1CB';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ACT_A', SENSOR_A_X, BELT_Y - 22);
+  }
+  if (state.actB) {
+    ctx.fillStyle = '#378ADD';
+    ctx.fillRect(SENSOR_B_X - 4, BELT_Y + BELT_H, 8, 18);
+    ctx.fillStyle = '#B5D4F4';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ACT_B', SENSOR_B_X, BELT_Y + BELT_H + 28);
+  }
+
+  for (let p of state.products) {
+    ctx.save();
+    ctx.globalAlpha = p.opacity;
+    let px = p.x, py = BELT_Y + BELT_H/2;
+    if (p.diverted && p.divertDir !== 0) {
+      py += p.divertDir * p.divertProgress * 55;
+      px += p.divertProgress * 20;
+    }
+    const col = PRODUCT_COLORS[p.type];
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.roundRect(px - 14, py - 11, 28, 22, 4);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.type, px, py);
+    ctx.restore();
+  }
+
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#5F5E5A';
+  ctx.fillText('← Entrada', 14, BELT_Y - 10);
+  ctx.textAlign = 'right';
+  ctx.fillText('Saída C →', W - 14, BELT_Y - 10);
+
+  ctx.fillStyle = '#1D9E75';
+  ctx.textAlign = 'left';
+  ctx.fillText('↑ Destino A', SENSOR_A_X - 20, 10);
+  ctx.fillStyle = '#378ADD';
+  ctx.fillText('↓ Destino B', SENSOR_B_X - 20, H - 6);
+
+  const lampVde = state.running && !state.desligaTemp;
+  const lampVm = !state.running || state.desligaTemp;
+  ctx.beginPath();
+  ctx.arc(W - 28, 18, 8, 0, Math.PI*2);
+  ctx.fillStyle = lampVde ? '#1D9E75' : '#2a2a3a';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(W - 28, 38, 8, 0, Math.PI*2);
+  ctx.fillStyle = lampVm ? '#D85A30' : '#2a2a3a';
+  ctx.fill();
+  ctx.font = '9px sans-serif';
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'right';
+  ctx.fillText('VDE', W - 40, 22);
+  ctx.fillText('VM', W - 40, 42);
+}
+
+function drawSensor(x, label, active, color) {
+  ctx.strokeStyle = active ? color : '#3a3a5e';
+  ctx.lineWidth = active ? 2 : 1;
+  ctx.beginPath();
+  ctx.moveTo(x, BELT_Y - 5);
+  ctx.lineTo(x, BELT_Y + BELT_H + 5);
+  ctx.stroke();
+  ctx.fillStyle = active ? color : '#3a3a5e';
+  ctx.font = '9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x, BELT_Y - 10);
+}
+
+requestAnimationFrame(loop);
+</script>
